@@ -1,7 +1,8 @@
 #!/usr/bin/python
 from resources.lib.helper import *
 from resources.lib.kodi_monitor import KodiMonitor
-
+import xbmcgui
+import time
 
 WIN = xbmcgui.Window(10000)
 MONITOR = KodiMonitor(win=WIN)
