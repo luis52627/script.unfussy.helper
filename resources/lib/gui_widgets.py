@@ -1,30 +1,29 @@
-#!/usr/bin/python
-# coding: utf-8
-import xbmc, xbmcgui, xbmcvfs
-import xml.etree.ElementTree as xml
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import xbmc
+import xbmcgui
+import xbmcvfs
+import xbmcaddon
+import xml.etree.ElementTree as ET
+
 from resources.lib.helper import *
 from resources.lib.widgets_datastore import WidgetsDataStore
 from resources.lib.widget_manager import WidgetManager
 from resources.lib.addon_paths_manager import AddonPathManager
-#######################################################################################
 
-ADDON               = xbmcaddon.Addon()
+ADDON = xbmcaddon.Addon()
 
-#######################################################################################
-
-class Gui_Widgets( xbmcgui.WindowXMLDialog ):
-    
-    def __init__( self, *args, **kwargs ):
+class Gui_Widgets(xbmcgui.WindowXMLDialog):
+    def __init__(self, *args, **kwargs):
         self.wm = WidgetManager()
         self.widgets = WidgetsDataStore(self.wm)
         if not self.widgets.loadWidgets():
-            log("fatal error loading widgets structure")
+            log("fatal error loading widgets structure", xbmc.LOGWARNING)
             self.close()
-    
-    def onInit( self ):
-        #position in menu
+
+    def onInit(self):
         self.index_widget = -1
-        #controls
         self.control_widgets = self.getControl(100)
         self.label_header = self.getControl(302)
         self.button_limit = self.getControl(306)
@@ -32,17 +31,14 @@ class Gui_Widgets( xbmcgui.WindowXMLDialog ):
         self.label_category = self.getControl(402)
         self.label_widget = self.getControl(502)
         self.button_widget = self.getControl(503)
+
+        # Inicializar seletores
         self.channel_selector = ChannelSelector(self)
-        self.channel_selector.setVisible(False)
         self.addon_selector = AddonSelector(self)
-        self.addon_selector.setVisible(False)
         self.playlist_selector = PlaylistSelector(self)
-        self.playlist_selector.setVisible(False)
         self.addon_path_selector = AddonPathSelector(self)
-        self.addon_path_selector.setVisible(False)
         self.order_selector = OrderSelector(self)
-        self.order_selector.setVisible(False)
-        #init
+
         self.renderWidgets()
         self.setFocus(self.control_widgets)
         self.setWidgetIndex()
@@ -50,58 +46,39 @@ class Gui_Widgets( xbmcgui.WindowXMLDialog ):
 
     def onClick(self, control_id):
         self.setWidgetIndex()
-        if control_id == 201:
-            self.moveItem(up=True)
-        elif control_id == 203:
-            self.moveItem(up=False)
-        elif control_id == 221:
-            self.newElement()
-        elif control_id == 223:
-            self.deleteElement()
-        elif control_id == 224:
-            self.reset2Default()
-        elif control_id == 303:
-            self.editHeader()
-        elif control_id == 306:
-            self.editLimit()
-        elif control_id == 307:
-            self.setVisibility()
-        elif control_id == 403:
-            self.editCategory(next=True)
-        elif control_id == 404:
-            self.editCategory(next=False)
-        elif control_id == 503:
-            self.editWidget()
-        elif control_id == 604:
-            self.editChannels()
-        elif control_id == 608:
-            self.editPointInTime()
-        elif control_id == 704:
-            self.editAddons()
-        elif control_id == 707:
-            self.editAddonOrder(next=False)
-        elif control_id == 708:
-            self.editAddonOrder(next=True)
-        elif control_id == 804:
-            self.editPlaylist()
-        elif control_id == 904:
-            self.editAddonPath()
-        elif control_id == 905:
-            self.manageAddonPaths()
-        elif control_id == 1004:
-            self.sortOrder(next=False)
-        elif control_id == 1005:
-            self.sortOrder(next=True)
+        actions = {
+            201: lambda: self.moveItem(up=True),
+            203: lambda: self.moveItem(up=False),
+            221: self.newElement,
+            223: self.deleteElement,
+            224: self.reset2Default,
+            303: self.editHeader,
+            306: self.editLimit,
+            307: self.setVisibility,
+            403: lambda: self.editCategory(next=True),
+            404: lambda: self.editCategory(next=False),
+            503: self.editWidget,
+            604: self.editChannels,
+            608: self.editPointInTime,
+            704: self.editAddons,
+            707: lambda: self.editAddonOrder(next=False),
+            708: lambda: self.editAddonOrder(next=True),
+            804: self.editPlaylist,
+            904: self.editAddonPath,
+            905: self.manageAddonPaths,
+            1004: lambda: self.sortOrder(next=False),
+            1005: lambda: self.sortOrder(next=True),
+        }
+        if control_id in actions:
+            actions[control_id]()
 
     def onAction(self, action):
         self.setWidgetIndex()
-        if action.getId() == 92:
-            #key back
+        if action.getId() == 92:  # back
             self.widgets.saveWidgets()
             self.widgets.setSkinStrings()
             self.close()
-        elif action.getId() == 3 or action.getId() == 4:
-            #key up or down
+        elif action.getId() in (3, 4):  # up/down
             if self.getFocusId() == 100:
                 self.setDetail()
 
@@ -111,244 +88,147 @@ class Gui_Widgets( xbmcgui.WindowXMLDialog ):
     def renderWidgets(self):
         self.control_widgets.reset()
         for widget in self.widgets.widgets:
-            listitem = self.createListItem(widget)
-            self.control_widgets.addItem(listitem)
+            self.control_widgets.addItem(self.createListItem(widget))
 
     def reloadWidgets(self, focus=-1):
         self.renderWidgets()
-        if focus > -1:
-            self.control_widgets.selectItem(focus)
-        else:
-            self.control_widgets.selectItem(self.index_widget)
+        self.control_widgets.selectItem(focus if focus > -1 else self.index_widget)
 
     def createListItem(self, widget):
         listitem = xbmcgui.ListItem(widget['header'])
         if widget['header'].isdigit():
             listitem.setLabel(ADDON.getLocalizedString(int(widget['header'])))
-        listitem.setArt({ 'thumb': 'icons/settings/widget.png' })
-        if widget['visible']:
-            listitem.setProperty('is_visible', 'true')
-        else:
-            listitem.setProperty('is_visible', 'false')
+        listitem.setArt({'thumb': 'icons/settings/widget.png'})
+        listitem.setProperty('is_visible', 'true' if widget.get('visible') else 'false')
         listitem.setProperty('category', self.wm.getCategory(widget['category']))
         listitem.setProperty('type', self.wm.getType(widget['category'], widget['type']))
         listitem.setProperty('desc', self.wm.getDesc(widget['category'], widget['type']))
         listitem.setProperty('styledesc', self.wm.getStyleDesc(widget['category'], widget['type'], widget['style']))
         listitem.setProperty('size', self.wm.getSize(widget['category'], widget['type'], widget['style']))
         listitem.setProperty('layout', self.wm.getLayout(widget['category'], widget['type'], widget['style']))
-        if widget['limit'] > 0:
-            listitem.setProperty('limit', str(widget['limit']))
-        else:
-            listitem.setProperty('limit', '')
+        limit = widget.get('limit', 0)
+        listitem.setProperty('limit', str(limit) if limit > 0 else '')
         return listitem
 
     def setWidgetIndex(self):
         self.index_widget = self.control_widgets.getSelectedPosition()
 
-    #Actions
     def setDetail(self):
-        category = self.widgets.getValue(self.index_widget, 'category')
-        type = self.widgets.getValue(self.index_widget, 'type')
-        style = self.widgets.getValue(self.index_widget, 'style')
-        #limit
-        if not self.wm.setLimit(category, type):
-            self.button_limit.setVisible(False)
-        elif not self.button_limit.isVisible():
-            self.button_limit.setVisible(True)
-        #radio "is visible"
-        is_visible = self.widgets.getValue(self.index_widget, 'visible')
-        self.radio_visible.setSelected(is_visible)        
-        #label "category"
-        self.label_category.setLabel(self.wm.getCategory(category, True))
-        #label "widget"
-        self.label_widget.setLabel(self.wm.getWidget(category, type, style))
-        if category == -1:
-            self.button_widget.setEnabled(False)
-        else:
-            self.button_widget.setEnabled(True)
+        idx = self.index_widget
+        cat = self.widgets.getValue(idx, 'category')
+        typ = self.widgets.getValue(idx, 'type')
+        style = self.widgets.getValue(idx, 'style')
 
-        if self.channel_selector.show(category, type):
-            self.channel_selector.setVisible(True)
-            self.channel_selector.setDetail(self.widgets.getValue(self.index_widget, 'channels'), self.widgets.getValue(self.index_widget, 'pointintime'))
-        elif self.channel_selector.hide(category, type):
-            self.channel_selector.setVisible(False)
+        self.button_limit.setVisible(self.wm.setLimit(cat, typ))
+        self.radio_visible.setSelected(self.widgets.getValue(idx, 'visible'))
+        self.label_category.setLabel(self.wm.getCategory(cat, True))
+        self.label_widget.setLabel(self.wm.getWidget(cat, typ, style))
+        self.button_widget.setEnabled(cat != -1)
 
-        if self.addon_selector.show(category, type):
-            self.addon_selector.setVisible(True)
-            self.addon_selector.setDetail(self.widgets.getValue(self.index_widget, 'addons'))
-        elif self.addon_selector.hide(category, type):
-            self.addon_selector.setVisible(False)
+        # Atualiza visualização para cada seletor
+        for selector, fields in [
+            (self.channel_selector, ('channels', 'pointintime')),
+            (self.addon_selector, ('addons',)),
+            (self.playlist_selector, ('playlist',)),
+            (self.addon_path_selector, ('addonpath',)),
+            (self.order_selector, ('sortby',))
+        ]:
+            if selector.show(cat, typ):
+                selector.setVisible(True)
+                vals = [self.widgets.getValue(idx, f) for f in fields]
+                selector.setDetail(*vals)
+            elif selector.hide(cat, typ):
+                selector.setVisible(False)
 
-        if self.playlist_selector.show(category, type):
-            self.playlist_selector.setVisible(True)
-            self.playlist_selector.setDetail(self.widgets.getValue(self.index_widget, 'playlist'))
-        elif self.playlist_selector.hide(category, type):
-            self.playlist_selector.setVisible(False)
-
-        if self.addon_path_selector.show(category, type):
-            self.addon_path_selector.setVisible(True)
-            self.addon_path_selector.setDetail(self.widgets.getValue(self.index_widget, 'addonpath'))
-        elif self.addon_path_selector.hide(category, type):
-            self.addon_path_selector.setVisible(False)
-
-        if self.order_selector.show(category, type):
-            self.order_selector.setVisible(True)
-            self.order_selector.setDetail(self.widgets.getValue(self.index_widget, 'sortby'))
-        elif self.order_selector.hide(category, type):
-            self.order_selector.setVisible(False)
-
-    def moveItem(self, up=False):
-        pos_new = self.widgets.switchElements(self.index_widget, up)
-        self.reloadWidgets(pos_new)
-
+    # Ações básicas:
+    def moveItem(self, up): self.widgets.switchElements(self.index_widget, up); self.reloadWidgets()
     def newElement(self):
         self.widgets.newElement(self.index_widget)
         self.index_widget += 1
         self.reloadWidgets()
         self.setDetail()
         self.setFocusId(303)
-
     def deleteElement(self):
-        dialog = xbmcgui.Dialog()
-        header = ADDON.getLocalizedString(30112)
-        content = ADDON.getLocalizedString(30113) + '?\n"' + self.widgets.getHeader(self.index_widget) + '"'
-        ok = dialog.yesno(header, content)
-        if not ok:
-            return
-        self.widgets.deleteElement(self.index_widget)
-        self.reloadWidgets()
-        self.setDetail()
-    
+        header = self.widgets.getHeader(self.index_widget)
+        if xbmcgui.Dialog().yesno(
+            ADDON.getLocalizedString(30112),
+            f"{ADDON.getLocalizedString(30113)}?\n\"{header}\""
+        ):
+            self.widgets.deleteElement(self.index_widget)
+            self.reloadWidgets()
+            self.setDetail()
     def reset2Default(self):
-        dialog = xbmcgui.Dialog()
-        header = ADDON.getLocalizedString(30112)
-        content = ADDON.getLocalizedString(30117)
-        ok = dialog.yesno(header, content)
-        if not ok:
-            return
-        self.widgets.reset()
-        self.index_widget = 0
-        self.reloadWidgets()
-        self.setDetail()
-
+        if xbmcgui.Dialog().yesno(
+            ADDON.getLocalizedString(30112),
+            ADDON.getLocalizedString(30117)
+        ):
+            self.widgets.reset()
+            self.index_widget = 0
+            self.reloadWidgets()
+            self.setDetail()
     def editHeader(self):
-        header = self.widgets.getValue(self.index_widget, 'header')
-        if header.isdigit():
-            header = xbmc.getLocalizedString(int(header))
-        dialog = xbmcgui.Dialog()
-        new_header = dialog.input(ADDON.getLocalizedString(30030), type=xbmcgui.INPUT_ALPHANUM, defaultt=header)
-        if new_header == '': return
-        self.widgets.setValue(self.index_widget, 'header', new_header)
-        self.reloadWidgets()
-
+        hdr = self.widgets.getValue(self.index_widget, 'header')
+        if hdr.isdigit():
+            hdr = ADDON.getLocalizedString(int(hdr))
+        new = xbmcgui.Dialog().input(ADDON.getLocalizedString(30030), type=xbmcgui.INPUT_ALPHANUM, defaultt=hdr)
+        if new: self.widgets.setValue(self.index_widget, 'header', new); self.reloadWidgets()
     def editLimit(self):
-        limit = str(self.widgets.getValue(self.index_widget, 'limit'))
-        dialog = xbmcgui.Dialog()
-        new_limit = dialog.numeric(0, ADDON.getLocalizedString(30019), limit)
-        if new_limit == '': return
-        self.widgets.setValue(self.index_widget, 'limit', int(new_limit))
-        self.reloadWidgets()
-
+        cur = str(self.widgets.getValue(self.index_widget, 'limit'))
+        new = xbmcgui.Dialog().numeric(0, ADDON.getLocalizedString(30019), cur)
+        if new: self.widgets.setValue(self.index_widget, 'limit', int(new)); self.reloadWidgets()
     def setVisibility(self):
-        selected = self.radio_visible.isSelected()
-        self.widgets.setValue(self.index_widget, 'visible', selected)
-        self.reloadWidgets()
-
-    def editCategory(self, next=False):
-        new_cat = self.widgets.getValue(self.index_widget, 'category')
-        if next:
-            new_cat = (new_cat+1) % self.wm.numCategories()
-        else:
-            new_cat = new_cat - 1
-            if new_cat < 0:
-                new_cat = self.wm.numCategories() - 1
-        self.widgets.setValue(self.index_widget, 'category', new_cat)
-        self.widgets.setValue(self.index_widget, 'limit', 20)
-        self.widgets.setValue(self.index_widget, 'type', -1)
-        self.widgets.setValue(self.index_widget, 'style', -1)
-        self.widgets.setValue(self.index_widget, 'channels', [])
-        self.widgets.setValue(self.index_widget, 'pointintime', '20:15')
-        self.widgets.setValue(self.index_widget, 'addons', [])
-        self.widgets.setValue(self.index_widget, 'playlist', '')
+        self.widgets.setValue(self.index_widget, 'visible', self.radio_visible.isSelected()); self.reloadWidgets()
+    def editCategory(self, next):
+        idx = self.index_widget
+        new_cat = (self.widgets.getValue(idx, 'category') + (1 if next else -1)) % self.wm.numCategories()
+        self.widgets.setValue(idx, 'category', new_cat)
+        # reset campos
+        for f in ['limit', 'type', 'style', 'channels', 'pointintime', 'addons', 'playlist', 'addonpath']:
+            self.widgets.setValue(idx, f, [] if f.endswith('s') else '')
         self.button_widget.setEnabled(True)
         self.setDetail()
-
     def editWidget(self):
-        category = self.widgets.getValue(self.index_widget, 'category')
-        cat_name = self.wm.getCategory(category)
-        type = int(self.widgets.getValue(self.index_widget, 'type'))
-        style = int(self.widgets.getValue(self.index_widget, 'style'))
-        index_selected = self.wm.getWidgetIndex(category, type, style)
-        type_items = self.wm.getWidgetItems(category)
-        dialog = xbmcgui.Dialog()
-        widget_new = dialog.select(cat_name, type_items, preselect=index_selected, useDetails=True)
-        if widget_new == -1:
-            return
-        widget_new = self.wm.getWidgetDetails(category, widget_new)
-        new_type = widget_new[0]
-        new_style = widget_new[1]
-        self.widgets.setValue(self.index_widget, 'type', new_type)
-        self.widgets.setValue(self.index_widget, 'style', new_style)
-        self.widgets.setValue(self.index_widget, 'header', self.wm.getType(category, new_type))
-        if not self.wm.setLimit(category, new_type):
-            self.widgets.setValue(self.index_widget, 'limit', -1)
-        if self.channel_selector.show(category, new_type):
-            self.widgets.addArray(self.index_widget, 'channels')
-            self.widgets.addValue(self.index_widget, 'pointintime', '20:15')
-        elif self.addon_selector.show(category, new_type):
-            self.widgets.addArray(self.index_widget, 'addons')
-        elif self.playlist_selector.show(category, new_type):
-            self.widgets.addValue(self.index_widget, 'playlist', '')
-        elif self.addon_path_selector.show(category, new_type):
-            self.widgets.addValue(self.index_widget, 'addonpath', '')
+        idx = self.index_widget
+        cat = self.widgets.getValue(idx, 'category')
+        typ, style = self.wm.getWidgetDetails(cat,
+            xbmcgui.Dialog().select(
+                self.wm.getCategory(cat), 
+                self.wm.getWidgetItems(cat), preselect=self.wm.getWidgetIndex(cat, *self.widgets.getValue(idx, 'type', 'style')),
+                useDetails=True
+            )
+        )
+        self.widgets.setValue(idx, 'type', typ)
+        self.widgets.setValue(idx, 'style', style)
+        self.widgets.setValue(idx, 'header', self.wm.getType(cat, typ))
+        if not self.wm.setLimit(cat, typ):
+            self.widgets.setValue(idx, 'limit', -1)
         self.reloadWidgets()
         self.setDetail()
-
     def editChannels(self):
-        channels_new = self.channel_selector.showSelector(self.widgets.getValue(self.index_widget, 'channels'))
-        self.widgets.setValue(self.index_widget, 'channels', channels_new)
-        self.setDetail()
-
+        new = self.channel_selector.showSelector(self.widgets.getValue(self.index_widget, 'channels'))
+        if new is not None: self.widgets.setValue(self.index_widget, 'channels', new); self.setDetail()
     def editPointInTime(self):
-        time_new = self.channel_selector.showTimeSelector(self.widgets.getValue(self.index_widget, 'pointintime'))
-        self.widgets.setValue(self.index_widget, 'pointintime', time_new)
-        self.setDetail()
-
+        new = self.channel_selector.showTimeSelector(self.widgets.getValue(self.index_widget, 'pointintime'))
+        if new: self.widgets.setValue(self.index_widget, 'pointintime', new); self.setDetail()
     def editAddons(self):
-        addons_new = self.addon_selector.showSelector(self.widgets.getValue(self.index_widget, 'addons'))
-        self.widgets.setValue(self.index_widget, 'addons', addons_new)
-        self.setDetail()
-
-    def editAddonOrder(self, next=False):
-        self.addon_selector.editOrder(next)
-        self.widgets.hasChanged()
-
+        new = self.addon_selector.showSelector(self.widgets.getValue(self.index_widget, 'addons'))
+        if new is not None: self.widgets.setValue(self.index_widget, 'addons', new); self.setDetail()
+    def editAddonOrder(self, next):
+        self.addon_selector.editOrder(next); self.widgets.hasChanged()
     def editPlaylist(self):
-        pl_selected = self.widgets.getValue(self.index_widget, 'playlist')
-        category = self.widgets.getValue(self.index_widget, 'category')
-        type = self.widgets.getValue(self.index_widget, 'type')
-        playlist_new = self.playlist_selector.showSelector(category, type, pl_selected)
-        if playlist_new == '':
-            return
-        self.widgets.setValue(self.index_widget, 'playlist', playlist_new)
-        self.setDetail()
-
+        sel = self.widgets.getValue(self.index_widget, 'playlist')
+        cat = self.widgets.getValue(self.index_widget, 'category')
+        typ = self.widgets.getValue(self.index_widget, 'type')
+        new = self.playlist_selector.showSelector(cat, typ, sel)
+        if new: self.widgets.setValue(self.index_widget, 'playlist', new); self.setDetail()
     def editAddonPath(self):
-        path_selected = self.widgets.getValue(self.index_widget, 'addonpath')
-        path_new = self.addon_path_selector.showSelector(path_selected)
-        if not path_new: return
-        self.widgets.setValue(self.index_widget, 'header', path_new['name'])
-        self.widgets.setValue(self.index_widget, 'addonpath', path_new)
-        self.reloadWidgets()
-        self.setDetail()
-
+        sel = self.widgets.getValue(self.index_widget, 'addonpath')
+        new = self.addon_path_selector.showSelector(sel)
+        if new: self.widgets.setValue(self.index_widget, 'header', new['name']); self.widgets.setValue(self.index_widget, 'addonpath', new); self.reloadWidgets(); self.setDetail()
     def manageAddonPaths(self):
         self.addon_path_selector.showManager()
-
-    def sortOrder(self, next=False):
-        new_order = self.order_selector.editOrder(next)
-        self.widgets.setValue(self.index_widget, 'sortby', new_order)
-        self.setDetail()
+    def sortOrder(self, next):
+        idx = self.order_selector.editOrder(next); self.widgets.setValue(self.index_widget, 'sortby', idx); self.setDetail()
 
 ############################################################################
 # ChannelSelector
