@@ -19,6 +19,19 @@ DEFAULTPATH = os.path.join(CWD, 'resources', 'widgets_default.json')
 CONFIGPATH = os.path.join(xbmcvfs.translatePath('special://profile/'), 'addon_data', ADDONID, 'widgets.json')
 SKININCLUDEPATH = xbmcvfs.translatePath(os.path.join('special://skin/xml/', 'Includes_Home_Widgetcontent.xml'))
 
+
+def indent(elem, level=0):
+    i = "\n" + level * "  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        for child in elem:
+            indent(child, level + 1)
+        if not child.tail or not child.tail.strip():
+            child.tail = i
+    if level and (not elem.tail or not elem.tail.strip()):
+        elem.tail = i
+
 class WidgetsDataStore:
     def __init__(self, wm=None):
         self.wm = wm or WidgetManager()
@@ -159,167 +172,114 @@ class WidgetsDataStore:
     def deleteElement(self, index_widget):
         self.changed = True
         del self.widgets[index_widget]
-
+        
 class WidgetXMLWriter:
-
     def __init__(self, wm):
         self.wm = wm
 
     def save(self, widgets):
-        #root element 'includes'
-        root = xml.Element('includes')
-        #include home_widget_content
-        include_widget_content = xml.SubElement(root, 'include')
-        include_widget_content.set('name', 'home_widget_content')
-        include_widget_anchor = xml.SubElement(root, 'include')
-        include_widget_anchor.set('name', 'home_widget_anchors')
+        root = ET.Element('includes')
+        include_widget_content = ET.SubElement(root, 'include', name='home_widget_content')
+        include_widget_anchor = ET.SubElement(root, 'include', name='home_widget_anchors')
+
         widget_id = 500
-        num_widgets = len(widgets)
         for widget in widgets:
-            if not widget['visible']: 
+            if not widget['visible']:
                 continue
             self.widgetItem(include_widget_content, widget, widget_id)
-            self.widgetAnchor(include_widget_anchor, widget, widget_id, num_widgets)
+            self.widgetAnchor(include_widget_anchor, widget, widget_id, len(widgets))
             if self.wm.isAddonWidget(widget['category'], widget['type']):
                 self.writeStaticContent(root, widget, widget_id)
             widget_id += 1
+
         self.createWidgetHeaderCond(root, widgets)
         indent(root)
-        #log("xml: \n%s" % xml.tostring(root))
-        #log("write to %s" % SKININCLUDEPATH)
-        tree = xml.ElementTree(root)
-        tree.write(SKININCLUDEPATH, xml_declaration=True, encoding='utf-8', method="xml")
+        tree = ET.ElementTree(root)
+        tree.write(SKININCLUDEPATH, encoding='utf-8', xml_declaration=True, method="xml")
 
     def widgetItem(self, parent, widget, id):
-        widget_item = xml.SubElement(parent, 'include')
-        widget_item.set('content', 'widget_mainmenu')
-        self.setParam(widget_item, 'id', id)
+        item = ET.SubElement(parent, 'include', content='widget_mainmenu')
+        self.setParam(item, 'id', id)
         header = widget['header']
         if header.isdigit():
             header = ADDON.getLocalizedString(int(header))
-        self.setParam(widget_item, 'header', header)
+        self.setParam(item, 'header', header)
         if self.wm.setLimit(widget['category'], widget['type']):
-            self.setParam(widget_item, 'limit', widget['limit'])
-        self.setParam(widget_item, 'type', self.wm.getStyleWidget(widget['category'], widget['type'], widget['style']))
-        self.setParam(widget_item, 'itemwidth', self.wm.getWidth(widget['category'], widget['type'], widget['style']))
-        self.setParam(widget_item, 'height', self.wm.getHeight(widget['category'], widget['type'], widget['style']))
+            self.setParam(item, 'limit', widget['limit'])
+        self.setParam(item, 'type', self.wm.getStyleWidget(widget['category'], widget['type'], widget['style']))
+        self.setParam(item, 'itemwidth', self.wm.getWidth(widget['category'], widget['type'], widget['style']))
+        self.setParam(item, 'height', self.wm.getHeight(widget['category'], widget['type'], widget['style']))
         path = self.getPath(widget)
         if self.wm.isAddonWidget(widget['category'], widget['type']):
             path += '-' + str(id)
-        self.setParam(widget_item, 'path', path)
+        self.setParam(item, 'path', path)
         if self.wm.staticContent(widget['category'], widget['type']):
-            self.setParam(widget_item, 'static_content', 'true')
+            self.setParam(item, 'static_content', 'true')
         if self.wm.hasOnClick(widget['category'], widget['type']):
-            self.setParam(widget_item, 'onclick', self.wm.getOnClick(widget['category'], widget['type']))
-            self.setParam(widget_item, 'useonclick', 'true')
+            self.setParam(item, 'onclick', self.wm.getOnClick(widget['category'], widget['type']))
+            self.setParam(item, 'useonclick', 'true')
         if self.wm.isOrderableWidget(widget['category'], widget['type']):
-            self.setParam(widget_item, 'sortby', self.wm.getSortbyDynamic(widget['sortby']))
+            self.setParam(item, 'sortby', self.wm.getSortbyDynamic(widget['sortby']))
         else:
-            self.setParam(widget_item, 'sortby', self.wm.getSortby(widget['category'], widget['type']))
-        self.setParam(widget_item, 'sortorder', self.wm.getSortorder(widget['category'], widget['type']))
+            self.setParam(item, 'sortby', self.wm.getSortby(widget['category'], widget['type']))
+        self.setParam(item, 'sortorder', self.wm.getSortorder(widget['category'], widget['type']))
         if self.wm.hasTarget(widget['category'], widget['type']):
-            self.setParam(widget_item, 'target', self.wm.getTarget(widget['category'], widget['type']))
+            self.setParam(item, 'target', self.wm.getTarget(widget['category'], widget['type']))
         if self.wm.showPlayStatus(widget['category'], widget['type']):
-            self.setParam(widget_item, 'showplaystatus', 'true')
+            self.setParam(item, 'showplaystatus', 'true')
 
-    def widgetAnchor(self, parent, widget, id, num_widgets):
-        anchor = xml.SubElement(parent, 'control')
-        anchor.set('type', 'button')
-        anchor.set('id', str(id) + '777')
-        visible = xml.SubElement(anchor, 'visible')
-        visible.set('allowhiddenfocus', 'true')
-        visible.text = 'false'
-        onright = xml.SubElement(anchor, 'onright')
-        onright.text = 'SetProperty(active_channel,' + str(id) + ')'
-        onright2 = xml.SubElement(anchor, 'onright')
-        onright2.text = str(id)
-        onleft = xml.SubElement(anchor, 'onleft')
-        onleft.text = '9001'
-        onup = xml.SubElement(anchor, 'onup')
-        if id == 500:
-            onup.text = '9001'
-        else:
-            onup.text = 'SetFocus(' + str(id-1) + ')'
-        ondown = xml.SubElement(anchor, 'ondown')
-        if id == (500 + num_widgets - 1):
-            ondown.text = 'SetFocus(500)'
-        else:
-            ondown.text = 'SetFocus(' + str(id+1) + ')'
-        onclick = xml.SubElement(anchor, 'onclick')
-        onclick.text = self.getOnClick(widget)
+    def widgetAnchor(self, parent, widget, id, total):
+        anchor = ET.SubElement(parent, 'control', type='button', id=str(id) + '777')
+        ET.SubElement(anchor, 'visible', allowhiddenfocus='true').text = 'false'
+        ET.SubElement(anchor, 'onright').text = f'SetProperty(active_channel,{id})'
+        ET.SubElement(anchor, 'onright').text = str(id)
+        ET.SubElement(anchor, 'onleft').text = '9001'
+        ET.SubElement(anchor, 'onup').text = '9001' if id == 500 else f'SetFocus({id - 1})'
+        ET.SubElement(anchor, 'ondown').text = 'SetFocus(500)' if id == (500 + total - 1) else f'SetFocus({id + 1})'
+        ET.SubElement(anchor, 'onclick').text = self.getOnClick(widget)
 
     def getOnClick(self, widget):
         cat = widget['category']
         type = widget['type']
-        onclick = ''
-        if (cat == 1 and type == 2) or (cat == 2 and (type == 2 or type == 3)) or (cat == 4 and type == 2):
-            onclick = 'ActivateWindow(Videos,special://profile/playlists/video/%s,return)' % widget['playlist']
-        elif cat == 3 and (type == 3 or type == 4 or type == 5):
-            onclick = 'ActivateWindow(Music,special://profile/playlists/music/%s,return)' % widget['playlist']
+        if (cat == 1 and type == 2) or (cat == 2 and type in (2, 3)) or (cat == 4 and type == 2):
+            return f"ActivateWindow(Videos,special://profile/playlists/video/{widget['playlist']},return)"
+        elif cat == 3 and type in (3, 4, 5):
+            return f"ActivateWindow(Music,special://profile/playlists/music/{widget['playlist']},return)"
         elif cat == 5 and type == 1:
-            addonpath = widget['addonpath']['path']
-            first_slash = addonpath.find('/',10)
-            plugin_id = addonpath[9:first_slash]
-            onclick = 'RunAddon(' + plugin_id + ')' 
-        else:
-            onclick = self.wm.getHeaderAction(widget['category'], widget['type'])
-        return onclick
+            plugin_id = widget['addonpath']['path'].split('/')[0].replace('plugin://', '')
+            return f'RunAddon({plugin_id})'
+        return self.wm.getHeaderAction(cat, type)
 
     def getPath(self, widget):
-        path = ''
-        if widget['category'] == 0 and  widget['type'] == 3:
-            base_path = self.wm.getPath(widget['category'], widget['type'])
-            path = base_path + '&pointintime=' + widget['pointintime']
-            path += '&channels='
-            path = '%s%s' % (path, widget['channels'])
-        elif ((widget['category'] == 1 and  widget['type'] == 2) or 
-              (widget['category'] == 2 and  widget['type'] == 2) or 
-              (widget['category'] == 2 and  widget['type'] == 3) or
-              (widget['category'] == 3 and  widget['type'] == 3) or
-              (widget['category'] == 3 and  widget['type'] == 4) or
-              (widget['category'] == 3 and  widget['type'] == 5) or
-              (widget['category'] == 4 and  widget['type'] == 2)):
-            base_path = self.wm.getPath(widget['category'], widget['type'])
-            if widget['playlist'] != '':
-                path = base_path + '/' + widget['playlist']
-        elif widget['category'] == 5 and  widget['type'] == 1:
-            path = widget['addonpath']['path']
-        else:
-            path = self.wm.getPath(widget['category'], widget['type'])
-        return path
+        cat = widget['category']
+        type = widget['type']
+        if cat == 0 and type == 3:
+            base = self.wm.getPath(cat, type)
+            channels = '-'.join(map(str, widget['channels']))
+            return f"{base}&pointintime={widget['pointintime']}&channels={channels}"
+        elif cat in [1, 2, 3, 4] and type in [2, 3, 4, 5]:
+            path = self.wm.getPath(cat, type)
+            return f"{path}/{widget['playlist']}" if widget.get('playlist') else path
+        elif cat == 5 and type == 1:
+            return widget['addonpath']['path']
+        return self.wm.getPath(cat, type)
 
     def setParam(self, parent, name, value):
-        param = xml.SubElement(parent, 'param')
-        param.set('name', name)
-        param.text = encode4XML(value)
+        ET.SubElement(parent, 'param', name=name).text = encode4XML(str(value))
 
     def writeStaticContent(self, parent, widget, widget_id):
-        include_item = xml.SubElement(parent, 'include')
-        include_item.set('name', self.getPath(widget) + '-' + str(widget_id))
-        content_item = xml.SubElement(include_item, 'content')
+        include_item = ET.SubElement(parent, 'include', name=self.getPath(widget) + '-' + str(widget_id))
+        content_item = ET.SubElement(include_item, 'content')
         for addon in widget['addons']:
-            item = xml.SubElement(content_item, 'item')
-            label = xml.SubElement(item, 'label')
-            label.text = encode4XML(addon['name'])
-            thumb = xml.SubElement(item, 'thumb')
-            thumb.text = encode4XML(addon['thumb'])
-            onclick = xml.SubElement(item, 'onclick')
-            onclick.text = encode4XML('RunAddon(' + addon['id'] + ')')
+            item = ET.SubElement(content_item, 'item')
+            ET.SubElement(item, 'label').text = encode4XML(addon['name'])
+            ET.SubElement(item, 'thumb').text = encode4XML(addon['thumb'])
+            ET.SubElement(item, 'onclick').text = encode4XML(f"RunAddon({addon['id']})")
 
     def createWidgetHeaderCond(self, parent, widgets):
-        id = 500
-        num_widgets = len(widgets)
         cond = 'ControlGroup(9002).HasFocus'
-        if num_widgets > 0:
-            cond += ' | '
-        for widget in widgets:
-            if not widget['visible']: 
-                continue
-            cond += 'Control.HasFocus(' + str(id) + '777)'
-            if id < (500 + num_widgets - 1):
-                cond += ' | '
-            id += 1
-        include_item = xml.SubElement(parent, 'include')
-        include_item.set('name', 'cond_show_updown_arrows')
-        visible_item = xml.SubElement(include_item, 'visible')
-        visible_item.text = cond
+        ids = [f'Control.HasFocus({500 + i}777)' for i, w in enumerate(widgets) if w['visible']]
+        if ids:
+            cond += ' | ' + ' | '.join(ids)
+        include_item = ET.SubElement(parent, 'include', name='cond_show_updown_arrows')
+        ET.SubElement(include_item, 'visible').text = cond
