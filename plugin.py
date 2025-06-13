@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import sys
+import xbmcgui
 import xbmcplugin
 try:
     from urllib2 import urlparse
