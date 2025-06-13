@@ -4,14 +4,6 @@ import xbmc
 import xbmcgui
 from resources.lib.helper import json_call, log, getUtcOffset
 
-# Propriedades usadas nas chamadas JSON
-timer_properties = [
-    "timerid", "starttime", "endtime", "title", "state", "channelid"
-]
-
-channel_properties = [
-    "channelid", "channelnumber", "label"
-]
 
 class PVRTimers:
 
