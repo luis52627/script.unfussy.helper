@@ -8,6 +8,7 @@ import xbmc, xbmcgui, xbmcvfs, xbmcaddon
 
 from resources.lib.helper import *
 from resources.lib.menu_actionmanager import MenuActionManager
+from resources.lib.helper import log, encode4XML
 
 #######################################################################################
 
@@ -60,6 +61,10 @@ class MenuXMLWriter:
 
         indent(root)
         tree = ET.ElementTree(root)
+
+        if not SKININCLUDEPATH.parent.exists():
+            SKININCLUDEPATH.parent.mkdir(parents=True, exist_ok=True)
+
         tree.write(str(SKININCLUDEPATH), encoding='utf-8', xml_declaration=True, method="xml")
 
     def mainMenuItem(self, parent, item, sub_id=0):
