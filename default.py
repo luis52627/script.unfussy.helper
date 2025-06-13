@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import sys
 import xbmcgui, xbmcaddon
 try:
     from urllib2 import urlparse
@@ -16,7 +17,7 @@ from resources.lib.pvr_channellist import PVRChannelList
 #######################################################################################
 
 ADDON     = xbmcaddon.Addon()
-CWD       = ADDON.getAddonInfo('path').decode('utf-8')
+CWD       = ADDON.getAddonInfo('path')
 
 #######################################################################################
 
