@@ -1,66 +1,65 @@
-#!/usr/bin/python
-# coding: utf-8
-import os, json
-import xml.etree.ElementTree as xml
-import xbmc, xbmcgui, xbmcvfs
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import json
+import xml.etree.ElementTree as ET
+import xbmc
+import xbmcaddon
+import xbmcvfs
+
 from resources.lib.helper import *
 from resources.lib.widget_manager import WidgetManager
-#######################################################################################
 
-ADDON               = xbmcaddon.Addon()
-ADDONID             = ADDON.getAddonInfo('id').decode( 'utf-8' )
-CWD                 = ADDON.getAddonInfo('path').decode('utf-8')
-DEFAULTPATH         = xbmc.translatePath( os.path.join(CWD, 'resources','widgets_default.json') ).decode("utf-8")
-CONFIGPATH          = os.path.join( xbmc.translatePath( "special://profile/" ).decode( 'utf-8' ), "addon_data", ADDONID, 'widgets.json').decode("utf-8")
-SKININCLUDEPATH     = xbmc.translatePath( os.path.join('special://skin', 'xml','Includes_Home_Widgetcontent.xml') ).decode("utf-8")
-
-#######################################################################################
+ADDON = xbmcaddon.Addon()
+ADDONID = ADDON.getAddonInfo('id')
+CWD = xbmc.translatePath(ADDON.getAddonInfo('path'))
+DEFAULTPATH = os.path.join(CWD, 'resources', 'widgets_default.json')
+CONFIGPATH = os.path.join(xbmcvfs.translatePath('special://profile/'), 'addon_data', ADDONID, 'widgets.json')
+SKININCLUDEPATH = xbmcvfs.translatePath(os.path.join('special://skin/xml/', 'Includes_Home_Widgetcontent.xml'))
 
 class WidgetsDataStore:
-
-    def __init__(self, wm = None):
-        if not wm:
-            self.wm = WidgetManager()
-        else:
-            self.wm = wm
+    def __init__(self, wm=None):
+        self.wm = wm or WidgetManager()
         self.changed = False
         self.widgets = None
         self.xmlWriter = WidgetXMLWriter(self.wm)
 
     def loadWidgets(self):
-        self.load(CONFIGPATH)
-        if not self.widgets:
-            self.load(DEFAULTPATH)
-        if self.widgets:
-            return True
-        else:
-            return False
+        self._load_file(CONFIGPATH) or self._load_file(DEFAULTPATH)
+        return bool(self.widgets)
 
-    def load(self, file):
-        data = None
+    def _load_file(self, path):
         try:
-            widgets_json_file = open(file).readlines()
-            widgets_json = ''
-            for line in widgets_json_file:
-                widgets_json += line
-            data = json.loads(widgets_json)
-        except Exception:
+            with xbmcvfs.File(path) as fh:
+                self.widgets = json.loads(fh.read())
+            return True
+        except:
             self.widgets = None
-        self.widgets = data
+            return False
 
     def hasChanged(self):
         self.changed = True
-    
+
     def reset(self):
-        xbmcvfs.delete(CONFIGPATH)
-        self.widgets = None
+        if xbmcvfs.exists(CONFIGPATH):
+            xbmcvfs.delete(CONFIGPATH)
         self.changed = True
         self.loadWidgets()
 
     def saveWidgets(self):
-        if not self.changed: return
-        self.saveJson()
+        if not self.changed:
+            return
+        self._save_json()
         self.xmlWriter.save(self.widgets)
+        self.changed = False
+
+    def _save_json(self):
+        base = os.path.dirname(CONFIGPATH)
+        if not xbmcvfs.exists(base):
+            xbmcvfs.mkdirs(base)
+        with open(CONFIGPATH, 'w', encoding='utf-8') as fh:
+            json.dump(self.widgets, fh, indent=2, ensure_ascii=False)
 
     def setSkinStrings(self):
         xbmc.executebuiltin('Skin.Reset(runningat_name_0)')
@@ -69,27 +68,17 @@ class WidgetsDataStore:
         xbmc.executebuiltin('Skin.Reset(runningat_path_1)')
         xbmc.executebuiltin('Skin.Reset(runningat_name_2)')
         xbmc.executebuiltin('Skin.Reset(runningat_path_2)')
-        runningat_found = 0
+        count = 0
         for widget in self.widgets:
-            if not widget['visible']: 
-                continue
-            if widget['category'] == 0 and widget['type'] == 3:
-                #write skinstring for runningat widget
+            if widget.get('visible') and widget.get('category') == 0 and widget.get('type') == 3:
                 name = widget['header']
-                base_path = self.wm.getPath(0, 3)
-                path = base_path + '&pointintime=' + widget['pointintime']
-                path += '&channels='
-                channels = '%s' % widget['channels']
-                channels = channels.replace(' ', '')
-                channels = channels.replace(',', '-')
-                path += channels
-                str_name = 'runningat_name_' + str(runningat_found)
-                str_path = 'runningat_path_' + str(runningat_found)
-                xbmc.executebuiltin('Skin.SetString(' + str_name + ',' + name.encode('utf-8') + ')')
-                xbmc.executebuiltin('Skin.SetString(' + str_path + ',' + path.encode('utf-8') + ')')
-                runningat_found += 1
-            if runningat_found == 3:
-                break
+                path = self.wm.getPath(0, 3)
+                path += f"&pointintime={widget['pointintime']}&channels=" + "-".join(map(str, widget['channels']))
+                xbmc.executebuiltin(f'Skin.SetString(runningat_name_{count},{name})')
+                xbmc.executebuiltin(f'Skin.SetString(runningat_path_{count},{path})')
+                count += 1
+                if count == 3:
+                    break
 
     def saveJson(self):
         base_path = os.path.dirname(CONFIGPATH)
