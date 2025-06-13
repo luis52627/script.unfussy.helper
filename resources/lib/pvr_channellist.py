@@ -40,8 +40,6 @@ class PVRChannelList:
         log(f"setChannelIds: stored {len(channel_ids)} channels", xbmc.LOGDEBUG)
 
     def fetchBroadcasts(self, channel_id):
-        # broadcast_properties_short teste
-        broadcast_properties_short = ['broadcastid', 'title', 'episodename', 'runtime', 'starttime', 'endtime']
 
         res = json_call('PVR.GetBroadcasts', 
                         properties=broadcast_properties_short, 
