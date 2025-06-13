@@ -1,89 +1,86 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import time
-from resources.lib.helper import *
+import xbmc
+import xbmcgui
+from resources.lib.helper import json_call, log, getUtcOffset
 
-#######################################################################################
+# Propriedades usadas nas chamadas JSON
+timer_properties = [
+    "timerid", "starttime", "endtime", "title", "state", "channelid"
+]
+
+channel_properties = [
+    "channelid", "channelnumber", "label"
+]
 
 class PVRTimers:
 
     def __init__(self):
-        return
+        pass
 
     def refresh(self):
         win_home = xbmcgui.Window(10000)
-        widget_id = int(win_home.getProperty('widget_timers_id'))
+        try:
+            widget_id = int(win_home.getProperty('widget_timers_id'))
+        except (ValueError, TypeError):
+            return
+        
         if widget_id == -1:
             return
+        
         timestr = time.strftime("%Y%m%d%H%M%S", time.gmtime())
         win_home.setProperty('widgetreload-timers', timestr)
+        
         widget = win_home.getControl(widget_id)
         if not widget.isVisible() and self.timersAvailable():
             widget.setVisibleCondition('true')
-        log("timers widget reloaded")
+        
+        log("Timers widget reloaded")
 
     def delTimerDialog(self, timer_id):
-        utc_offset = getUtcOffset()
         timer = self.fetchTimer(timer_id)
+        if not timer:
+            return False
+
         header = xbmc.getLocalizedString(19060) + '?'
-        line1 = timer['title']
+        line1 = timer.get('title', '')
         line2 = xbmc.getLocalizedString(846)
         dialog = xbmcgui.Dialog()
-        yes = dialog.yesno(header, line1, line2)        
-        if not yes:
-            return False
-        self.delTimer(timer_id)
-        return True
-
-    def timersAvailable(self):
-        timers = self.fetchTimers()
-        if len(timers) > 0:
+        if dialog.yesno(header, line1, line2):
+            self.delTimer(timer_id)
             return True
         return False
 
+    def timersAvailable(self):
+        return len(self.fetchTimers()) > 0
+
     def fetchTimers(self):
-        query = json_call('PVR.GetTimers',
-                    properties=timer_properties
-                )
-        timers = None
         try:
-            timers = query['result']['timers']
-        except Exception:
-            log("ERROR FETCH TIMERS")
+            query = json_call('PVR.GetTimers', properties=timer_properties)
+            return query['result'].get('timers', [])
+        except Exception as e:
+            log(f"ERROR FETCH TIMERS: {e}")
             return []
-        return timers
 
     def fetchTimer(self, timer_id):
-        query = json_call('PVR.GetTimerDetails',
-                    properties=timer_properties,
-                    params={'timerid': int(timer_id)}
-                )
-        timer = None
         try:
-            timer = query['result']['timerdetails']
-        except Exception:
-            log("ERROR FETCH TIMER")
+            query = json_call('PVR.GetTimerDetails', properties=timer_properties, params={'timerid': int(timer_id)})
+            return query['result'].get('timerdetails')
+        except Exception as e:
+            log(f"ERROR FETCH TIMER {timer_id}: {e}")
             return None
-        return timer
 
     def fetchChannel(self, channel_id):
-        query = json_call('PVR.GetChannelDetails',
-                properties=channel_properties,
-                params={'channelid': channel_id}
-            )
-        channel = None
         try:
-            channel = query['result']['channeldetails']
-        except Exception:
+            query = json_call('PVR.GetChannelDetails', properties=channel_properties, params={'channelid': channel_id})
+            return query['result'].get('channeldetails')
+        except Exception as e:
+            log(f"ERROR FETCH CHANNEL {channel_id}: {e}")
             return None
-        return channel
 
     def delTimer(self, timer_id):
-        query = json_call('PVR.DeleteTimer',
-                    params={ 'timerid': int(timer_id) }
-                )
-
-    def toggleTimer(self, timer_id):
-        return
-        #query = json_call('PVR.ToggleTimer',
-        #            params={ 'timerid': int(timer_id) }
-        #        )
+        try:
+            json_call('PVR.DeleteTimer', params={'timerid': int(timer_id)})
+            log(f"Timer {timer_id} deleted")
+        except Exception as e:
+            log(f"ERROR DELETE TIMER {timer_id}: {e}")
