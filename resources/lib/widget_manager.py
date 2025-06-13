@@ -1,14 +1,16 @@
-#!/usr/bin/python
-# coding: utf-8
-import xbmc, xbmcgui, xbmcvfs
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import xbmc
+import xbmcaddon
+import xbmcgui
+import xbmcvfs
 from resources.lib.helper import *
 
-#######################################################################################
-ADDON     = xbmcaddon.Addon()
-#######################################################################################
+ADDON = xbmcaddon.Addon()
 
 class WidgetManager:
-    #############################################################
+    """
     # Categories:
     # 0:  Live TV Widget
     #     Type 0: LiveTV
@@ -43,7 +45,20 @@ class WidgetManager:
     # 6:  Weather Widget
     #     Type 0: weather hourly
     #     Type 1: weather daily
-    ##############################################################
+    """
+
+    def __init__(self):
+        self.categories = [
+            ADDON.getLocalizedString(30200),
+            ADDON.getLocalizedString(30201),
+            ADDON.getLocalizedString(30202),
+            ADDON.getLocalizedString(30203),
+            ADDON.getLocalizedString(30204),
+            ADDON.getLocalizedString(30205),
+            ADDON.getLocalizedString(30207)
+        ]
+        self.types = []
+        self._init_types()
 
     def __init__(self):
         self.categories = [
@@ -586,195 +601,111 @@ class WidgetManager:
                 }            
             ]
         )
-    
-    def isAddonWidget(self, cat, type):
-        if cat == 5 and type == 0:
-            return True
-        return False
 
-    def isOrderableWidget(self, cat, type):
-        if cat == 0 and type == 0:
-            return True
-        return False
-    
-    def staticContent(self, cat, type):
-        if 'static_content' in self.types[cat][type]:
-            return True
-        return False
+    def isAddonWidget(self, cat, type_):
+        return cat == 5 and type_ == 0
 
-    def getCategory(self, cat, numbered = False):
-        if cat == -1:
+    def isOrderableWidget(self, cat, type_):
+        return cat == 0 and type_ == 0
+
+    def staticContent(self, cat, type_):
+        return self.types[cat][type_].get('static_content', False)
+
+    def getCategory(self, cat, numbered=False):
+        if cat < 0 or cat >= len(self.categories):
             return ADDON.getLocalizedString(30116)
-        if not numbered:
-            return self.categories[cat]
-        return str(cat+1) + '. ' + self.categories[cat]
+        return (f"{cat+1}. {self.categories[cat]}" if numbered 
+                else self.categories[cat])
 
     def numCategories(self):
         return len(self.categories)
 
-    def getType(self, cat, type):
-        if cat < 0 or type < 0:
+    def getType(self, cat, type_):
+        if cat < 0 or cat >= len(self.types) or type_ < 0 or type_ >= len(self.types[cat]):
             return ADDON.getLocalizedString(30116)
-        return self.types[cat][type]['header']
+        return self.types[cat][type_]['header']
 
-    def getTypeDesc(self, cat, type):
-        if cat < 0 or type < 0:
-            return ''
-        return self.types[cat][type]['description']
+    def getWidget(self, cat, type_, style):
+        header = self.getType(cat, type_)
+        styles = self.types[cat][type_]['styles']
+        label = styles[style]['label']
+        return f"{header} ({label})" if label else header
 
-    def getWidget(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return ADDON.getLocalizedString(30116)
-        widget = self.getType(cat, type)
-        style_ext = self.types[cat][type]['styles'][style]['label']
-        if style_ext != '':
-            widget += ' (' + style_ext + ')'
-        return widget
-
-    def getWidgetIndex(self, cat, type, style):
-        if cat == -1 or type == -1 or style == -1:
-            return -1
-        index = 0
-        current_type = 0
-        for widget in self.types[cat]:
-            current_style = 0
-            for styles in widget['styles']:
-                if type == current_type and style == current_style:
-                    return index
-                current_style += 1
-                index += 1
-            current_type += 1
+    def getWidgetIndex(self, cat, type_, style):
+        idx = 0
+        for t_idx, widget in enumerate(self.types[cat]):
+            for s_idx, _ in enumerate(widget['styles']):
+                if t_idx == type_ and s_idx == style:
+                    return idx
+                idx += 1
         return -1
 
     def getWidgetItems(self, cat):
-        if cat == -1:
-            return []
-        widget_items = []
+        items = []
         for widget in self.types[cat]:
             for style in widget['styles']:
                 label = widget['header']
-                if style['label'] != '':
-                    label += ' (' + style['label'] + ', ' + str(style['width']) + 'x' + str(style['height']) + 'px)'
-                else:
-                    label += ' (' + str(style['width']) + 'x' + str(style['height']) + 'px)'
-                label2 = widget['description']
-                if style['desc'] != '':
-                    label2 += ' (' + style['desc'] + ')'
-                widget_items.append(xbmcgui.ListItem(label=label, label2=label2))
-        return widget_items
+                if style['label']:
+                    label += f" ({style['label']}, {style['width']}x{style['height']})"
+                li = xbmcgui.ListItem(label=label, label2=widget['description'])
+                items.append(li)
+        return items
 
-    def getWidgetDetails(self, cat, widget_new):
-        item = 0
-        type = 0
-        for widget in self.types[cat]:
-            style = 0
-            for st in widget['styles']:
-                if widget_new == item:
-                    return (type, style)
-                style += 1
-                item += 1
-            type += 1
+    def getWidgetDetails(self, cat, idx):
+        count = 0
+        for t_idx, widget in enumerate(self.types[cat]):
+            for s_idx, _ in enumerate(widget['styles']):
+                if count == idx:
+                    return t_idx, s_idx
+                count += 1
 
+    def getSize(self, cat, type_, style):
+        style_info = self.types[cat][type_]['styles'][style]
+        return f"{style_info['width']}x{style_info['height']}px"
 
-    def getSize(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return ''
-        width  = self.types[cat][type]['styles'][style]['width']
-        height = self.types[cat][type]['styles'][style]['height']
-        return str(width) + 'x' + str(height) + 'px'
+    def getDesc(self, cat, type_):
+        return self.types[cat][type_]['description'] if 0 <= cat < len(self.types) else ''
 
-    def getDesc(self, cat, type):
-        if cat < 0 or type < 0:
-            return ''
-        return self.types[cat][type]['description']
+    def getStyleDesc(self, cat, type_, style):
+        return self.types[cat][type_]['styles'][style]['desc']
 
-    def getStyleDesc(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return ''
-        return self.types[cat][type]['styles'][style]['desc']
+    def getStyleWidget(self, cat, type_, style):
+        return self.types[cat][type_]['styles'][style]['widget']
 
-    def getStyleWidget(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return ''
-        return self.types[cat][type]['styles'][style]['widget']
+    def getPath(self, cat, type_):
+        return self.types[cat][type_].get('path', '')
 
-    def getWidth(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return 0
-        return self.types[cat][type]['styles'][style]['width']
+    def getHeaderAction(self, cat, type_):
+        return self.types[cat][type_].get('headeraction', '')
 
-    def getHeight(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return 0
-        return self.types[cat][type]['styles'][style]['height']
+    def getLayout(self, cat, type_, style):
+        info = self.types[cat][type_]['styles'][style]
+        w, h = info['width'], info['height']
+        return 'square' if w == h else ('landscape' if w > h else 'portrait')
 
-    def getPath(self, cat, type):
-        if cat < 0 or type < 0:
-            return ''
-        return self.types[cat][type]['path']
+    def hasOnClick(self, cat, type_):
+        return 'onclick' in self.types[cat][type_]
 
-    def getHeaderAction(self, cat, type):
-        if cat < 0 or type < 0:
-            return ''
-        if 'headeraction' not in self.types[cat][type]:
-            return ''
-        return self.types[cat][type]['headeraction']
+    def getOnClick(self, cat, type_):
+        return self.types[cat][type_].get('onclick', '')
 
-    def getLayout(self, cat, type, style):
-        if cat < 0 or type < 0:
-            return ''
-        width = self.types[cat][type]['styles'][style]['width']
-        height = self.types[cat][type]['styles'][style]['height']
-        layout = ''
-        if width == height:
-            layout = 'square'
-        elif width > height:
-            layout = 'landscape'
-        elif height > width:
-            layout = 'portrait'
-        return layout
+    def getSortby(self, cat, type_):
+        return self.types[cat][type_].get('sortby', '')
 
-    def hasOnClick(self, cat, type):
-        if 'onclick' in self.types[cat][type]:
-            return True
-        return False
+    def getSortbyDynamic(self, sortby_index):
+        return 'lastplayed' if sortby_index == 0 else ''
 
-    def getOnClick(self, cat, type):
-        return self.types[cat][type]['onclick']
+    def getSortorder(self, cat, type_):
+        return self.types[cat][type_].get('sortorder', '')
 
-    def getSortby(self, cat, type):
-        if 'sortby' in self.types[cat][type]:
-            return self.types[cat][type]['sortby']
-        return ''
+    def setLimit(self, cat, type_):
+        return self.types[cat][type_].get('setlimit', False)
 
-    def getSortbyDynamic(self, sortby):
-        if sortby == 0:
-            return 'lastplayed'
-        return ''
+    def hasTarget(self, cat, type_):
+        return 'target' in self.types[cat][type_]
 
-    def getSortorder(self, cat, type):
-        if 'sortorder' in self.types[cat][type]:
-            return self.types[cat][type]['sortorder']
-        return ''
+    def getTarget(self, cat, type_):
+        return self.types[cat][type_].get('target', '')
 
-    def setLimit(self, cat, type):
-        if cat == -1:
-            return True
-        return self.types[cat][type]['setlimit']
-
-    def hasTarget(self, cat, type):
-        if 'target' in self.types[cat][type]:
-            return True
-        return False
-
-    def getTarget(self, cat, type):
-        return self.types[cat][type]['target']
-
-    def showPlayStatus(self, cat, type):
-        if cat == 1 and type == 2:
-            return True
-        if cat == 2 and (type == 2 or type == 3):
-            return True
-        if cat == 4 and type == 2:
-            return True
-        return False
+    def showPlayStatus(self, cat, type_):
+        return (cat == 1 and type_ == 2) or (cat == 2 and type_ in (2,3)) or (cat == 4 and type_ == 2)
