@@ -1,26 +1,36 @@
-import xbmc, xbmcgui
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import xbmc
+import xbmcgui
+import xbmcaddon
+import xbmcvfs
 import os
 import json
 from resources.lib.helper import *
+
 #######################################################################################
 
-ADDON               = xbmcaddon.Addon()
-ADDONID             = ADDON.getAddonInfo('id').decode( 'utf-8' )
-CONFIGPATH          = os.path.join( xbmc.translatePath( "special://profile/" ).decode( 'utf-8' ), "addon_data", ADDONID, 'widget_addon_pathes.json').decode("utf-8")
+ADDON = xbmcaddon.Addon()
+ADDONID = ADDON.getAddonInfo('id')
+
+CONFIGPATH = xbmcvfs.translatePath(f"special://profile/addon_data/{ADDONID}/widget_addon_pathes.json")
 
 #######################################################################################
 
 class AddonPathManager:
-    
+
     def __init__(self):
-        pass        
+        pass
 
     def addPath(self, path, label):
-        log("add widget path: %s" % path)
-        if not path: return
+        log(f"add widget path: {path}")
+        if not path:
+            return
         dialog = xbmcgui.Dialog()
         name = dialog.input(ADDON.getLocalizedString(30274), defaultt=label, type=xbmcgui.INPUT_ALPHANUM)
-        if not name: return
+        if not name:
+            return
         self.add(name, path)
 
     def add(self, name, path):
@@ -32,27 +42,31 @@ class AddonPathManager:
             'path': path
         }
         addon_pathes.append(new_path)
+
         base_path = os.path.dirname(CONFIGPATH)
-        if not os.path.exists(base_path):
-            os.makedirs(base_path)
-        fh_addon_pathes = open(CONFIGPATH, 'w+')
-        json.dump(addon_pathes, fh_addon_pathes)
+        if not xbmcvfs.exists(base_path):
+            xbmcvfs.mkdirs(base_path)
+
+        with xbmcvfs.File(CONFIGPATH, 'w') as fh:
+            fh.write(json.dumps(addon_pathes))
 
     def deletePaths(self, paths, paths_del):
         for index_del in sorted(paths_del, reverse=True):
             del paths[index_del]
-        fh_addon_pathes = open(CONFIGPATH, 'w+')
-        json.dump(paths, fh_addon_pathes)
+        with xbmcvfs.File(CONFIGPATH, 'w') as fh:
+            fh.write(json.dumps(paths))
 
     def readExisting(self):
+        if not xbmcvfs.exists(CONFIGPATH):
+            return []
         try:
-            fh_addon_pathes = open(CONFIGPATH, 'r')
-            addon_pathes = fh_addon_pathes.read()
+            with xbmcvfs.File(CONFIGPATH, 'r') as fh:
+                addon_pathes = fh.read()
         except Exception:
             addon_pathes = '[]'
         return json.loads(addon_pathes)
 
     def getNextId(self, addon_pathes):
-        if len(addon_pathes) == 0:
+        if not addon_pathes:
             return 0
-        return addon_pathes[len(addon_pathes)-1]['id'] + 1
+        return addon_pathes[-1]['id'] + 1
