@@ -15,9 +15,10 @@ ADDON = xbmcaddon.Addon()
 ADDONID = ADDON.getAddonInfo('id')
 CWD = ADDON.getAddonInfo('path')
 
-DEFAULTPATH = Path(xbmcvfs.translatePath(Path(CWD) / 'resources' / 'menu_default.json'))
-CONFIGPATH = Path(xbmcvfs.translatePath(Path("special://profile") / "addon_data" / ADDONID / 'menu.json'))
-SKININCLUDEPATH = Path(xbmcvfs.translatePath(Path("special://skin") / 'xml' / 'Includes_Home_Menucontent.xml'))
+DEFAULTPATH = Path(xbmcvfs.translatePath(str(Path(CWD) / 'resources' / 'menu_default.json')))
+CONFIGPATH = Path(xbmcvfs.translatePath(str(Path("special://profile") / "addon_data" / ADDONID / 'menu.json')))
+SKININCLUDEPATH = Path(xbmcvfs.translatePath(str(Path("special://skin") / 'xml' / 'Includes_Home_Menucontent.xml')))
+
 
 #######################################################################################
 
