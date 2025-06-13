@@ -7,13 +7,14 @@ import xml.etree.ElementTree as ET
 import xbmc
 import xbmcaddon
 import xbmcvfs
+from pathlib import Path
 
 from resources.lib.helper import *
 from resources.lib.widget_manager import WidgetManager
 
 ADDON = xbmcaddon.Addon()
 ADDONID = ADDON.getAddonInfo('id')
-CWD = xbmc.translatePath(ADDON.getAddonInfo('path'))
+CWD = Path(xbmcvfs.translatePath(ADDON.getAddonInfo('path')))
 DEFAULTPATH = os.path.join(CWD, 'resources', 'widgets_default.json')
 CONFIGPATH = os.path.join(xbmcvfs.translatePath('special://profile/'), 'addon_data', ADDONID, 'widgets.json')
 SKININCLUDEPATH = xbmcvfs.translatePath(os.path.join('special://skin/xml/', 'Includes_Home_Widgetcontent.xml'))
